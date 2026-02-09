@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topRow">
+  <div class="pageTitle">
+    <div class="h1">DASHBOARD</div>
+    <div class="muted">One HQ for School, Airbnb, and Projects.</div>
+  </div>
+</div>
+
+<section class="card big">
+  <div class="ringWrap">
+    <div class="ring">
+      {% set pct = stats.progress %}
+      {% set r = 95 %}
+      {% set c = 2*3.14159*r %}
+      {% set dash = (pct/100)*c %}
+      <svg viewBox="0 0 220 220">
+        <circle class="ringBg" cx="110" cy="110" r="{{r}}"></circle>
+        <circle class="ringFg" cx="110" cy="110" r="{{r}}"
+          stroke-dasharray="{{dash}} {{c}}"></circle>
+      </svg>
+      <div class="ringText">
+        <div class="ringNum">{{ pct }}%</div>
+        <div class="muted small">Assignments Done</div>
+      </div>
+    </div>
+
+    <div class="statsRight">
+      <div class="statLine"><span>TOTAL ASSIGNMENTS</span><b>{{ stats.total }}</b></div>
+      <div class="statLine"><span>COMPLETED</span><b>{{ stats.completed }}</b></div>
+      <div class="statLine"><span>PENDING</span><b>{{ stats.pending }}</b></div>
+      <div class="statLine"><span>TODAY</span><b class="mono">{{ stats.today }}</b></div>
+
+      <div class="divider"></div>
+      <div class="subTitle">By Status</div>
+      <div class="bars">
+        {% for s in statuses %}
+          {% set count = stats.by_status.get(s, 0) %}
+          {% if count > 0 %}
+            <div class="barRow">
+              <div class="barLabel">{{ s }}</div>
+              <div class="barTrack"><div class="barFill soft" style="width:{{ (count / stats.total * 100)|int }}%"></div></div>
+              <div class="barPct">{{ count }}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SPRINT AND HOSTING QUICK VIEWS -->
+<div class="grid2">
+  <section class="card">
+    <div class="tableTitleRow">
+      <div class="subTitle">Current Sprint</div>
+      <a class="btn ghost smallBtn" href="/weekly">View Sprint</a>
+    </div>
+
+    {% if current_sprint %}
+      <div style="margin-top:10px;">
+        <div class="mono">{{ current_sprint.name }}</div>
+        <div class="muted small">
+          {{ current_sprint.start_date }} → {{ current_sprint.end_date }}
+          {% if current_sprint.focus %}<br/>Focus: {{ current_sprint.focus }}{% endif %}
+        </div>
+        <div style="margin-top:8px; padding:8px; background:rgba(14,26,18,.5); border-radius:8px; border:1px solid var(--line);">
+          <div class="muted small">Sprint Tasks: <b>{{ sprint_task_count }}</b></div>
+        </div>
+      </div>
+    {% else %}
+      <div class="muted">No active sprint. Start one in the Sprints & Agenda tab.</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="tableTitleRow">
+      <div class="subTitle">Hosting Properties</div>
+      <a class="btn ghost smallBtn" href="/hosting">View All</a>
+    </div>
+
+    {% if properties|length == 0 %}
+      <div class="muted">No properties yet. Add one in the Hosting tab.</div>
+    {% else %}
+      <div style="margin-top:10px;">
+        <div class="statLine"><span>ACTIVE PROPERTIES</span><b>{{ active_properties }}</b></div>
+        <div class="statLine"><span>TOTAL PROPERTIES</span><b>{{ properties|length }}</b></div>
+        {% if avg_nightly_price %}
+          <div class="statLine"><span>AVG NIGHTLY RATE</span><b>${{ "%.2f"|format(avg_nightly_price) }}</b></div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:14px;">
+  <div class="tableTitleRow">
+    <div class="subTitle">Overdue Assignments (top 6)</div>
+    <a class="btn ghost smallBtn" href="/tasks">Open Assignments</a>
+  </div>
+
+  {% if stats.overdue|length == 0 %}
+    <div class="muted">No overdue tasks. Keep that streak going!</div>
+  {% else %}
+    {% for t in stats.overdue %}
+      <div class="overdueItem">
+        <div class="mono">{{ t.title }}</div>
+        <div class="muted small">
+          <span class="tag {{ t.priority|lower }}">{{ t.priority }}</span>
+          <span class="danger">Overdue</span>
+          {% if t.due_date %}<span class="mono">{{ t.due_date }}</span>{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</section>
+
+{% endblock %}

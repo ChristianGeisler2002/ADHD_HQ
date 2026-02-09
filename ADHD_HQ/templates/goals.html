@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topRow">
+  <div class="pageTitle">
+    <div class="h1">GOAL TRACKER</div>
+    <div class="muted">Track savings + Projects build progress. Add roadmap milestones by month.</div>
+  </div>
+</div>
+
+<section class="card">
+  <div class="subTitle">Add Goal</div>
+  <form class="goalForm" method="post" action="/goals/add">
+    <input class="input" name="title" placeholder="Goal title (e.g., Complete five study sessions)" required>
+    <select class="select" name="pillar">
+      {% for p in pillars %}<option>{{p}}</option>{% endfor %}
+    </select>
+    <input class="input" type="number" name="target_value" placeholder="Target" value="100">
+    <input class="input" type="number" name="current_value" placeholder="Current" value="0">
+    <input class="input" type="date" name="due_date">
+    <button class="btn" type="submit">ADD</button>
+  </form>
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">Goals</div>
+
+  {% if goals|length == 0 %}
+    <div class="muted">No goals yet.</div>
+  {% else %}
+    <div class="goalList">
+      {% for g in goals %}
+        <div class="goalItem">
+          <div class="goalTop">
+            <div>
+              <div class="goalTitle">{{ g.title }}</div>
+              <div class="muted small">
+                <span class="tag pillar">{{ g.pillar }}</span>
+                {% if g.due_date %}<span class="mono">Due: {{ g.due_date }}</span>{% endif %}
+              </div>
+            </div>
+            <div class="goalPct">{{ g.pct }}%</div>
+          </div>
+
+          <div class="barTrack">
+            <div class="barFill" style="width:{{ g.pct }}%"></div>
+          </div>
+
+          <details style="margin-top:10px;">
+            <summary class="btn ghost smallBtn">Edit</summary>
+
+            <form class="goalEdit" method="post" action="/goals/update" style="margin-top:10px;">
+              <input type="hidden" name="goal_id" value="{{ g.id }}">
+              <input class="input" name="title" value="{{ g.title }}" required>
+              <select class="select" name="pillar">
+                {% for p in pillars %}
+                  <option {{ 'selected' if p==g.pillar else '' }}>{{p}}</option>
+                {% endfor %}
+              </select>
+              <input class="input" type="number" name="target_value" value="{{ g.target_value }}">
+              <input class="input" type="number" name="current_value" value="{{ g.current_value }}">
+              <input class="input" type="date" name="due_date" value="{{ g.due_date or '' }}">
+              <button class="btn smallBtn" type="submit">SAVE</button>
+            </form>
+
+            <form method="post" action="/goals/delete" style="margin-top:10px;">
+              <input type="hidden" name="goal_id" value="{{ g.id }}">
+              <button class="btn dangerBtn smallBtn" type="submit">DELETE</button>
+            </form>
+          </details>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">Projects Roadmap</div>
+
+  <form class="goalForm" method="post" action="/roadmap/add">
+    <input class="input" name="title" placeholder="Milestone (e.g., Finish frontend auth flow)" required>
+    <input class="input" name="month" value="{{ month_key }}" placeholder="YYYY-MM" required>
+    <select class="select" name="status">
+      {% for s in statuses %}<option>{{s}}</option>{% endfor %}
+    </select>
+    <input class="input" name="notes" placeholder="Notes (optional)">
+    <input type="hidden" name="pillar" value="Projects">
+    <button class="btn" type="submit">ADD</button>
+  </form>
+
+  <div class="divider"></div>
+
+  {% if roadmap|length == 0 %}
+    <div class="muted">No roadmap items yet.</div>
+  {% else %}
+    <div class="miniList">
+      {% for r in roadmap %}
+        <div class="miniItem">
+          <div class="miniTitle mono">{{ r.title }}</div>
+          <div class="miniMeta">
+            <span class="tag pillar">{{ r.pillar }}</span>
+            <span class="tag status">{{ r.status }}</span>
+            <span class="muted small mono">{{ r.month }}</span>
+          </div>
+
+          <details style="margin-top:8px;">
+            <summary class="btn ghost smallBtn">Edit</summary>
+
+            <form class="goalForm" method="post" action="/roadmap/update" style="margin-top:10px;">
+              <input type="hidden" name="item_id" value="{{ r.id }}">
+              <input class="input" name="title" value="{{ r.title }}" required>
+              <input class="input" name="month" value="{{ r.month }}" required>
+              <select class="select" name="status">
+                {% for s in statuses %}
+                  <option {{ 'selected' if s==r.status else '' }}>{{s}}</option>
+                {% endfor %}
+              </select>
+              <input class="input" name="notes" value="{{ r.notes or '' }}">
+              <input type="hidden" name="pillar" value="{{ r.pillar }}">
+              <button class="btn smallBtn" type="submit">SAVE</button>
+            </form>
+
+            <form method="post" action="/roadmap/delete" style="margin-top:10px;">
+              <input type="hidden" name="item_id" value="{{ r.id }}">
+              <button class="btn dangerBtn smallBtn" type="submit">DELETE</button>
+            </form>
+          </details>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

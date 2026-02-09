@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topRow">
+  <div class="pageTitle">
+    <div class="h1">ASSIGNMENTS</div>
+    <div class="muted">School-only task list for assignments, discussions, exams, and studying.</div>
+  </div>
+</div>
+
+<!-- ADD TASK -->
+<section class="card">
+  <form class="addForm2" method="post" action="/tasks/add">
+
+    <input
+      class="input"
+      name="title"
+      placeholder="New school task (e.g., Sample quiz, discussion reply)"
+      required
+    />
+
+    <select class="select" name="subcategory" id="subcatSelect"></select>
+
+    <select class="select" name="priority">
+      {% for p in priorities %}
+        <option>{{ p }}</option>
+      {% endfor %}
+    </select>
+
+    <select class="select" name="status">
+      {% for s in statuses %}
+        <option>{{ s }}</option>
+      {% endfor %}
+    </select>
+
+    <input class="input" type="date" name="due_date" />
+    <input class="input" type="time" name="due_time" />
+
+    <input class="input" name="notes" placeholder="Notes (optional)" />
+
+    <button class="btn" type="submit">ADD</button>
+  </form>
+</section>
+
+<!-- FILTERS -->
+<section class="card">
+  <div class="filters">
+    <form class="filterRow" method="get" action="/tasks">
+
+      <select class="select" name="status">
+        <option value="">All Status</option>
+        {% for s in statuses %}
+          <option value="{{ s }}" {{ 'selected' if filters.status==s else '' }}>
+            {{ s }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <select class="select" name="priority">
+        <option value="">All Priority</option>
+        {% for p in priorities %}
+          <option value="{{ p }}" {{ 'selected' if filters.priority==p else '' }}>
+            {{ p }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <input
+        class="input"
+        name="q"
+        value="{{ filters.q }}"
+        placeholder="Search title / notes..."
+        autocomplete="off"
+        spellcheck="false"
+      />
+
+      <button class="btn ghost" type="submit">Filter</button>
+      <a class="btn ghost" href="/tasks">Reset</a>
+    </form>
+  </div>
+
+  <!-- TASK TABLE -->
+  <div class="tableTitleRow">
+    <div class="subTitle">Tasks</div>
+    <div class="muted small">Click the box to mark complete. Edit opens inline.</div>
+  </div>
+
+  <div class="tableWrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>✓</th>
+          <th>Task</th>
+          <th>Sub-Category</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>Due</th>
+          <th>Days Left</th>
+          <th></th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+
+          <!-- TOGGLE COMPLETE -->
+          <td class="center">
+            <form method="post" action="/tasks/toggle">
+              <input type="hidden" name="task_id" value="{{ t.id }}">
+              <button class="checkBtn">
+                {{ '✓' if t.status == 'Completed' else '' }}
+              </button>
+            </form>
+          </td>
+
+          <td class="mono">{{ t.title }}</td>
+          <td>{{ t.subcategory }}</td>
+
+          <td>
+            <span class="tag {{ t.priority|lower }}">
+              {{ t.priority }}
+            </span>
+          </td>
+
+          <td>
+            <form method="post" action="/tasks/cycle-status" style="display:inline;">
+              <input type="hidden" name="task_id" value="{{ t.id }}">
+              <button class="tag status" style="border:none; background:none; cursor:pointer; padding:0; font-family:inherit;">
+                {{ t.status }}
+              </button>
+            </form>
+          </td>
+
+          <td class="mono">
+            {{ t.due_date or '-' }} {{ t.due_time or '' }}
+          </td>
+
+          <td class="mono">
+            {% if t.days_left is none %}
+              -
+            {% else %}
+              <span class="{{ 'danger' if t.days_left < 0 else '' }}">
+                {{ t.days_left }}
+              </span>
+            {% endif %}
+          </td>
+
+          <!-- EDIT / DELETE -->
+          <td class="right">
+            <details class="rowEdit">
+              <summary class="btn ghost smallBtn">Edit</summary>
+
+              <form class="editPane2" method="post" action="/tasks/update">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+
+                <input class="input" name="title" value="{{ t.title }}" required>
+
+                <select
+                  class="select subcatEdit"
+                  id="subcat-{{ t.id }}"
+                  name="subcategory"
+                  data-current="{{ t.subcategory }}"
+                ></select>
+
+                <select class="select" name="priority">
+                  {% for p in priorities %}
+                    <option {{ 'selected' if p == t.priority else '' }}>
+                      {{ p }}
+                    </option>
+                  {% endfor %}
+                </select>
+
+                <select class="select" name="status">
+                  {% for s in statuses %}
+                    <option {{ 'selected' if s == t.status else '' }}>
+                      {{ s }}
+                    </option>
+                  {% endfor %}
+                </select>
+
+                <input class="input" type="date" name="due_date" value="{{ t.due_date or '' }}">
+                <input class="input" type="time" name="due_time" value="{{ t.due_time or '' }}">
+                <input class="input" name="notes" value="{{ t.notes or '' }}" placeholder="Notes">
+
+                <div class="btnRow">
+                  <button class="btn smallBtn" type="submit">Save</button>
+                </div>
+              </form>
+
+              <form method="post" action="/tasks/delete" class="deleteRow">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
+              </form>
+            </details>
+          </td>
+
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SUBCATEGORY DATA -->
+<script>
+  window.TASKHQ_SUBCATS = {{ subcats | tojson }};
+</script>
+
+{% endblock %}
