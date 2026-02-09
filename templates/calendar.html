@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topRow">
+  <div class="pageTitle">
+    <div class="h1">SMART CALENDAR</div>
+    <div class="muted">Click a day to see tasks due.</div>
+  </div>
+</div>
+
+<section class="card">
+  <div class="subTitle">{{ year }}‑{{ "%02d"|format(month) }}</div>
+
+  <div class="calGridHead">
+    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+  </div>
+
+  <div class="calGrid">
+    {% for week in weeks %}
+      {% for d in week %}
+        {% set ds = d.isoformat() %}
+        {% set in_month = (d.month == month) %}
+        {% set is_today = (d == today) %}
+        {% set count = (by_date.get(ds, [])|length) %}
+        <a class="calCell {{ '' if in_month else 'dim' }} {{ 'today' if is_today else '' }} {{ 'selected' if selected_day==ds else '' }}"
+           href="/calendar?y={{year}}&m={{month}}&day={{ds}}">
+          <div class="calNum">{{ d.day }}</div>
+          {% if count > 0 %}
+            <div class="calPill">{{ count }} due</div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="tableTitleRow">
+    <div class="subTitle">Projects Timeline</div>
+    <a class="btn ghost smallBtn" href="/goals">Manage Roadmap</a>
+  </div>
+
+  <!-- ADD ROADMAP ITEM -->
+  <form class="addForm2" method="post" action="/roadmap/add" style="margin-top:10px;">
+    <input class="input" name="title" placeholder="Milestone (e.g., Complete Auth System)" required>
+    <select class="select" name="month" required>
+      {% for m in months_data %}
+        <option value="{{ m.month }}">{{ m.display }}</option>
+      {% endfor %}
+    </select>
+    <select class="select" name="status">
+      <option>Not Started</option>
+      <option>In Progress</option>
+      <option>Completed</option>
+    </select>
+    <input class="input" name="notes" placeholder="Notes (optional)">
+    <input type="hidden" name="pillar" value="Projects">
+    <button class="btn" type="submit">ADD MILESTONE</button>
+  </form>
+
+  <div class="divider"></div>
+
+  <!-- GANTT CHART -->
+  {% if gantt_data|length == 0 %}
+    <div class="muted">No milestones yet. Add one above to start tracking progress.</div>
+  {% else %}
+    <div class="ganttContainer" style="margin-top:10px; overflow-x:auto;">
+      <table class="ganttTable">
+        <thead>
+          <tr>
+            <th class="ganttHeader">MILESTONE</th>
+            {% for m in months_data %}
+              <th class="ganttMonth">{{ m.short }}</th>
+            {% endfor %}
+            <th class="ganttStatus">STATUS</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in gantt_data %}
+          <tr>
+            <td class="ganttItemName">
+              <div class="mono">{{ item.title }}</div>
+            </td>
+            {% for m in months_data %}
+              <td class="ganttCell">
+                {% if item.month == m.month %}
+                  {% if item.status == 'Completed' %}
+                    <div class="ganttBlock completed"></div>
+                  {% elif item.status == 'In Progress' %}
+                    <div class="ganttBlock inprogress"></div>
+                  {% else %}
+                    <div class="ganttBlock notstarted"></div>
+                  {% endif %}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <td class="ganttCellStatus">
+              <span class="tag {{ item.status|lower|replace(' ', '') }}">{{ item.status }}</span>
+            </td>
+            <td class="right">
+              <details class="rowEdit" style="display:inline;">
+                <summary class="btn ghost smallBtn">Edit</summary>
+                <form class="editPane2" method="post" action="/roadmap/update" style="margin-top:10px;">
+                  <input type="hidden" name="item_id" value="{{ item.id }}">
+                  <input class="input" name="title" value="{{ item.title }}" required>
+                  <select class="select" name="month" required>
+                    {% for m in months_data %}
+                      <option value="{{ m.month }}" {{ 'selected' if m.month == item.month else '' }}>{{ m.display }}</option>
+                    {% endfor %}
+                  </select>
+                  <select class="select" name="status">
+                    <option {{ 'selected' if item.status == 'Not Started' else '' }}>Not Started</option>
+                    <option {{ 'selected' if item.status == 'In Progress' else '' }}>In Progress</option>
+                    <option {{ 'selected' if item.status == 'Completed' else '' }}>Completed</option>
+                  </select>
+                  <input class="input" name="notes" value="{{ item.notes or '' }}" placeholder="Notes">
+                  <input type="hidden" name="pillar" value="Projects">
+                  <div class="btnRow">
+                    <button class="btn smallBtn" type="submit">Save</button>
+                  </div>
+                </form>
+                <form method="post" action="/roadmap/delete" class="deleteRow">
+                  <input type="hidden" name="item_id" value="{{ item.id }}">
+                  <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+
+  {% if selected_day and selected_tasks|length == 0 %}
+    <div class="muted">No tasks due that day.</div>
+  {% elif selected_day %}
+    <div class="miniList">
+      {% for t in selected_tasks %}
+        <div class="miniItem">
+          <div class="miniTitle mono">{{ t.title }}</div>
+          <div class="miniMeta">
+            <span class="tag pillar">{{ t.pillar }}</span>
+            <span class="tag {{t.priority|lower}}">{{ t.priority }}</span>
+            <span class="tag status">{{ t.status }}</span>
+            <span class="muted small mono">{{ t.due_time or '' }}</span>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="muted">Select a day above.</div>
+  {% endif %}
+</section>
+
+{% endblock %}

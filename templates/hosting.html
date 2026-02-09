@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topRow">
+  <div class="pageTitle">
+    <div class="h1">HOSTING</div>
+    <div class="muted">Airbnb co-host HQ — properties, commissions, and profit stats.</div>
+  </div>
+</div>
+
+<section class="card">
+  <div class="subTitle">This Month</div>
+  <div class="muted small">Gross, expenses, commission, and net for the current month.</div>
+
+  <div class="goalList" style="margin-top:10px;">
+    <div class="goalItem">
+      <div class="goalTop">
+        <div class="mono">Gross</div>
+        <div class="mono">${{ '%.2f'|format(summary.gross) }}</div>
+      </div>
+    </div>
+    <div class="goalItem">
+      <div class="goalTop">
+        <div class="mono">Expenses</div>
+        <div class="mono">${{ '%.2f'|format(summary.expenses) }}</div>
+      </div>
+    </div>
+    <div class="goalItem">
+      <div class="goalTop">
+        <div class="mono">Commission</div>
+        <div class="mono">${{ '%.2f'|format(summary.commission) }}</div>
+      </div>
+    </div>
+    <div class="goalItem">
+      <div class="goalTop">
+        <div class="mono">Net</div>
+        <div class="mono">${{ '%.2f'|format(summary.net) }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">Add Property</div>
+  <form class="addForm2" method="post" action="/hosting/property/add">
+    <input class="input" name="name" placeholder="Property name (e.g., Unit B - Downtown)" required>
+    <input class="input" name="address" placeholder="Address (optional)">
+    <input class="input" name="platform" value="Airbnb" placeholder="Platform (Airbnb)">
+    <input class="input" name="nightly_rate" type="number" step="0.01" placeholder="Nightly rate">
+    <input class="input" name="commission_pct" type="number" step="0.01" placeholder="Commission %">
+    <input class="input" name="notes" placeholder="Notes (optional)">
+    <button class="btn" type="submit">ADD</button>
+  </form>
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">Properties</div>
+
+  {% if properties|length == 0 %}
+    <div class="muted">No properties yet.</div>
+  {% else %}
+    <div class="goalList" style="margin-top:10px;">
+      {% for p in properties %}
+        <div class="goalItem">
+          <div class="goalTop">
+            <div>
+              <div class="mono">
+                <a href="/hosting?prop={{p.id}}" class="mono">{{ p.name }}</a>
+                {% if p.active == 0 %}<span class="tag">Inactive</span>{% endif %}
+              </div>
+              <div class="muted small">
+                {{ p.platform }} • ${{ '%.2f'|format(p.nightly_rate or 0) }}/night • {{ '%.2f'|format(p.commission_pct or 0) }}% commission
+                {% if p.address %} • {{ p.address }}{% endif %}
+              </div>
+            </div>
+
+            <details class="rowEdit">
+              <summary class="btn ghost smallBtn">Edit</summary>
+              <form class="editPane2" method="post" action="/hosting/property/update">
+                <input type="hidden" name="prop_id" value="{{p.id}}">
+                <input class="input" name="name" value="{{p.name}}" required>
+                <input class="input" name="address" value="{{p.address or ''}}" placeholder="Address (optional)">
+                <input class="input" name="platform" value="{{p.platform or 'Airbnb'}}">
+                <input class="input" name="nightly_rate" type="number" step="0.01" value="{{p.nightly_rate or 0}}">
+                <input class="input" name="commission_pct" type="number" step="0.01" value="{{p.commission_pct or 0}}">
+                <input class="input" name="notes" value="{{p.notes or ''}}" placeholder="Notes (optional)">
+                <div class="btnRow">
+                  <button class="btn smallBtn" type="submit">Save</button>
+                </div>
+              </form>
+              <form method="post" action="/hosting/property/delete" class="deleteRow">
+                <input type="hidden" name="prop_id" value="{{p.id}}">
+                <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
+              </form>
+            </details>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">Profit Log</div>
+  <div class="muted small">Pick a property above to log revenue and expenses per day.</div>
+
+  {% if selected_prop == 0 %}
+    <div class="muted" style="margin-top:10px;">Add a property first, then pick it to log entries.</div>
+  {% else %}
+
+    <form class="addForm2" method="post" action="/hosting/entry/add" style="margin-top:10px;">
+      <input type="hidden" name="property_id" value="{{selected_prop}}">
+      <input class="input" type="date" name="entry_date" required>
+      <input class="input" type="number" step="0.01" name="gross_revenue" placeholder="Gross revenue">
+      <input class="input" type="number" step="0.01" name="expenses" placeholder="Expenses">
+      <input class="input" name="notes" placeholder="Notes (optional)">
+      <button class="btn" type="submit">ADD</button>
+    </form>
+
+    {% if entries|length == 0 %}
+      <div class="muted" style="margin-top:10px;">No entries yet for this property.</div>
+    {% else %}
+      <div class="tableWrap" style="margin-top:10px;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Gross</th>
+              <th>Expenses</th>
+              <th>Notes</th>
+              <th class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in entries %}
+              <tr>
+                <td class="mono">{{ e.entry_date }}</td>
+                <td class="mono">${{ '%.2f'|format(e.gross_revenue or 0) }}</td>
+                <td class="mono">${{ '%.2f'|format(e.expenses or 0) }}</td>
+                <td>{{ e.notes or '-' }}</td>
+                <td class="right">
+                  <details class="rowEdit">
+                    <summary class="btn ghost smallBtn">Edit</summary>
+                    <form class="editPane2" method="post" action="/hosting/entry/update">
+                      <input type="hidden" name="entry_id" value="{{e.id}}">
+                      <input type="hidden" name="property_id" value="{{selected_prop}}">
+                      <input class="input" type="date" name="entry_date" value="{{e.entry_date}}" required>
+                      <input class="input" type="number" step="0.01" name="gross_revenue" value="{{e.gross_revenue or 0}}">
+                      <input class="input" type="number" step="0.01" name="expenses" value="{{e.expenses or 0}}">
+                      <input class="input" name="notes" value="{{e.notes or ''}}">
+                      <div class="btnRow">
+                        <button class="btn smallBtn" type="submit">Save</button>
+                      </div>
+                    </form>
+                    <form method="post" action="/hosting/entry/delete" class="deleteRow">
+                      <input type="hidden" name="entry_id" value="{{e.id}}">
+                      <input type="hidden" name="property_id" value="{{selected_prop}}">
+                      <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
+                    </form>
+                  </details>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+</section>
+
+{% endblock %}

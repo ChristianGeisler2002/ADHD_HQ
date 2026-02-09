@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ADHD HQ</title>
+
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <script defer src="/static/js/app.js"></script>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="side">
+
+      <!-- BRAND -->
+      <div class="brand">
+        <div class="brandDot"></div>
+        <div class="brandTitle">ADHD&nbsp;HQ</div>
+      </div>
+
+      <!-- NAV -->
+      <nav class="nav">
+        <a class="navItem {{ 'active' if nav=='dashboard' else '' }}" href="/dashboard">
+          Dashboard
+        </a>
+        <a class="navItem {{ 'active' if nav=='tasks' else '' }}" href="/tasks">
+          Assignments
+        </a>
+        <a class="navItem {{ 'active' if nav=='weekly' else '' }}" href="/weekly">
+          Sprints & Agenda
+        </a>
+        <a class="navItem {{ 'active' if nav=='calendar' else '' }}" href="/calendar">
+          Smart Calendar
+        </a>
+        <a class="navItem {{ 'active' if nav=='goals' else '' }}" href="/goals">
+          Goal Tracker
+        </a>
+        <a class="navItem {{ 'active' if nav=='hosting' else '' }}" href="/hosting">
+          Hosting
+        </a>
+      </nav>
+
+      <!-- FOOTER -->
+      <div class="sideFooter">
+        <div class="pill">School • Airbnb • Projects</div>
+      </div>
+
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- TOP TABS -->
+      <header class="topTabs">
+        <a class="tab {{ 'active' if nav=='dashboard' else '' }}" href="/dashboard">
+          Dashboard
+        </a>
+        <a class="tab {{ 'active' if nav=='tasks' else '' }}" href="/tasks">
+          Assignments
+        </a>
+        <a class="tab {{ 'active' if nav=='weekly' else '' }}" href="/weekly">
+          Sprints & Agenda
+        </a>
+        <a class="tab {{ 'active' if nav=='calendar' else '' }}" href="/calendar">
+          Smart Calendar
+        </a>
+        <a class="tab {{ 'active' if nav=='goals' else '' }}" href="/goals">
+          Goal Tracker
+        </a>
+        <a class="tab {{ 'active' if nav=='hosting' else '' }}" href="/hosting">
+          Hosting
+        </a>
+      </header>
+
+      {% block content %}{% endblock %}
+
+    </main>
+
+  </div>
+</body>
+</html>

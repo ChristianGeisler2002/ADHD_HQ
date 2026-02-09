@@ -1,0 +1,45 @@
+{
+  "pillars": [
+    "School",
+    "Airbnb",
+    "Projects"
+  ],
+  "subcategories": {
+    "School": [
+      "Assignments",
+      "Discussions",
+      "Reading",
+      "Projects",
+      "Exams/Quizzes",
+      "Studying"
+    ],
+    "Airbnb": [
+      "Guest Messaging",
+      "Turnovers/Cleaning",
+      "Listings/Photos",
+      "Pricing/Calendar",
+      "Maintenance",
+      "Reviews"
+    ],
+    "Projects": [
+      "UI/Frontend",
+      "Backend/API",
+      "Compliance/Legal",
+      "Investor Prep",
+      "Marketing/Growth",
+      "Testing/QA"
+    ]
+  },
+  "priorities": [
+    "High",
+    "Medium",
+    "Low"
+  ],
+  "statuses": [
+    "Not Started",
+    "In Progress",
+    "Completed",
+    "On Hold",
+    "Cancelled"
+  ]
+}
