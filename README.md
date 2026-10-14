@@ -84,6 +84,6 @@ The regression suite covers page rendering, task planning links, input validatio
 
 Packaging follows the [pywebview freezing guide](https://pywebview.flowrl.com/guide/freezing) and [PyInstaller spec documentation](https://pyinstaller.org/en/latest/spec-files.html).
 
-## Publication
+## Source and local data
 
-The current source excludes databases, caches, build output, and local tool files. Older Git history contains a previously tracked database. Review and remove that historical copy before making the existing repository public; deleting it from the current tree does not remove it from history. No repository visibility or history changes are part of this source update.
+The source is available directly in this repository. Personal databases, caches, build output, and local tool settings are excluded. The Windows executable is built from the same Python source using the included PyInstaller spec. Keep backups of your own database outside Git.
