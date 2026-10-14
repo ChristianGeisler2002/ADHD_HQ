@@ -10,6 +10,7 @@
 </head>
 
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div class="app">
 
     <!-- SIDEBAR -->
@@ -22,7 +23,7 @@
       </div>
 
       <!-- NAV -->
-      <nav class="nav">
+      <nav class="nav" aria-label="Main navigation">
         <a class="navItem {{ 'active' if nav=='dashboard' else '' }}" href="/dashboard">
           Dashboard
         </a>
@@ -38,42 +39,17 @@
         <a class="navItem {{ 'active' if nav=='goals' else '' }}" href="/goals">
           Goal Tracker
         </a>
-        <a class="navItem {{ 'active' if nav=='hosting' else '' }}" href="/hosting">
-          Hosting
-        </a>
       </nav>
 
       <!-- FOOTER -->
       <div class="sideFooter">
-        <div class="pill">School • Airbnb • Projects</div>
+        <div class="pill">School • Projects • Productivity</div>
       </div>
 
     </aside>
 
     <!-- MAIN -->
-    <main class="main">
-
-      <!-- TOP TABS -->
-      <header class="topTabs">
-        <a class="tab {{ 'active' if nav=='dashboard' else '' }}" href="/dashboard">
-          Dashboard
-        </a>
-        <a class="tab {{ 'active' if nav=='tasks' else '' }}" href="/tasks">
-          Assignments
-        </a>
-        <a class="tab {{ 'active' if nav=='weekly' else '' }}" href="/weekly">
-          Sprints & Agenda
-        </a>
-        <a class="tab {{ 'active' if nav=='calendar' else '' }}" href="/calendar">
-          Smart Calendar
-        </a>
-        <a class="tab {{ 'active' if nav=='goals' else '' }}" href="/goals">
-          Goal Tracker
-        </a>
-        <a class="tab {{ 'active' if nav=='hosting' else '' }}" href="/hosting">
-          Hosting
-        </a>
-      </header>
+    <main class="main" id="main">
 
       {% block content %}{% endblock %}
 

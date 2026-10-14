@@ -1,7 +1,6 @@
 {
   "pillars": [
     "School",
-    "Airbnb",
     "Projects"
   ],
   "subcategories": {
@@ -13,14 +12,7 @@
       "Exams/Quizzes",
       "Studying"
     ],
-    "Airbnb": [
-      "Guest Messaging",
-      "Turnovers/Cleaning",
-      "Listings/Photos",
-      "Pricing/Calendar",
-      "Maintenance",
-      "Reviews"
-    ],
+
     "Projects": [
       "UI/Frontend",
       "Backend/API",

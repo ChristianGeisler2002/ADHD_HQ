@@ -1,12 +1,30 @@
+import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "taskhq.db"
+DATA_DIR = Path(
+    os.environ.get(
+        "ADHD_HQ_DATA_DIR",
+        Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local" / "share"))
+        / "ADHD HQ",
+    )
+)
+DB_PATH = DATA_DIR / "taskhq.db"
+UNSET = object()
 
+
+@contextmanager
 def conn():
-    c = sqlite3.connect(DB_PATH)
-    c.row_factory = sqlite3.Row
-    return c
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DB_PATH, timeout=15)
+    connection.row_factory = sqlite3.Row
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
 
 def init_db():
     with conn() as db:
@@ -65,53 +83,38 @@ def init_db():
         );
         """)
 
-        # Hosting properties (AirBnB properties management)
+        # Gantt timeline bars (Projects)
         db.execute("""
-        CREATE TABLE IF NOT EXISTS properties (
+        CREATE TABLE IF NOT EXISTS gantt_bars (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            address TEXT DEFAULT NULL,
-            listing_url TEXT DEFAULT NULL,
-            nightly_price REAL DEFAULT 0.0,
-            commission_rate REAL DEFAULT 0.03,
-            status TEXT NOT NULL DEFAULT 'Active',
-            notes TEXT DEFAULT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT NULL
-        );
-        """)
-
-        # Hosting tasks/events (daily to-dos for cohost management)
-        db.execute("""
-        CREATE TABLE IF NOT EXISTS hosting_tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            property_id INTEGER NOT NULL,
             title TEXT NOT NULL,
-            description TEXT DEFAULT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            color TEXT NOT NULL DEFAULT '#1f77b4',
             status TEXT NOT NULL DEFAULT 'Not Started',
-            due_date TEXT DEFAULT NULL,
-            priority TEXT NOT NULL DEFAULT 'Medium',
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT NULL,
-            FOREIGN KEY (property_id) REFERENCES properties(id)
+            notes TEXT DEFAULT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         """)
 
-        # Lightweight migration for older DBs: add new columns if missing.
-        # SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN.
-        def _add_col(sql: str):
-            try:
-                db.execute(sql)
-            except Exception:
-                pass
-
-        _add_col("ALTER TABLE tasks ADD COLUMN sprint_id INTEGER DEFAULT NULL")
-        _add_col("ALTER TABLE tasks ADD COLUMN agenda_date TEXT DEFAULT NULL")
-        _add_col("ALTER TABLE tasks ADD COLUMN effort_points INTEGER NOT NULL DEFAULT 1")
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
+        for name, declaration in {
+            "sprint_id": "INTEGER DEFAULT NULL",
+            "agenda_date": "TEXT DEFAULT NULL",
+            "effort_points": "INTEGER NOT NULL DEFAULT 1",
+            "gantt_id": "INTEGER DEFAULT NULL",
+        }.items():
+            if name not in columns:
+                db.execute(f"ALTER TABLE tasks ADD COLUMN {name} {declaration}")
+        db.execute("CREATE INDEX IF NOT EXISTS tasks_sprint ON tasks(sprint_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS tasks_agenda ON tasks(agenda_date)")
+        db.execute("CREATE INDEX IF NOT EXISTS tasks_gantt ON tasks(gantt_id)")
         db.commit()
+
 
 def _row_to_dict(r):
     return dict(r) if r is not None else None
+
 
 def seed_if_empty():
     with conn() as db:
@@ -119,19 +122,25 @@ def seed_if_empty():
         if n == 0:
             db.execute(
                 "INSERT INTO tasks(title,pillar,subcategory,priority,status,notes) VALUES (?,?,?,?,?,?)",
-                ("Write a practice summary", "School", "Discussions", "High", "In Progress", "Fictional example task."),
+                (
+                    "Write a practice summary",
+                    "School",
+                    "Discussions",
+                    "High",
+                    "In Progress",
+                    "Fictional example task.",
+                ),
             )
             db.execute(
                 "INSERT INTO tasks(title,pillar,subcategory,priority,status,notes) VALUES (?,?,?,?,?,?)",
-                ("Example planning item", "Airbnb", "Guest Messaging", "High", "Not Started", ""),
-            )
-            db.execute(
-                "INSERT INTO tasks(title,pillar,subcategory,priority,status,notes) VALUES (?,?,?,?,?,?)",
-                ("Sketch an example page", "Projects", "UI/Frontend", "High", "Not Started", "Fictional example task."),
-            )
-            db.execute(
-                "INSERT INTO goals(title,pillar,target_value,current_value) VALUES (?,?,?,?)",
-                ("Complete five study sessions", "Airbnb", 5000, 1900),
+                (
+                    "Sketch an example page",
+                    "Projects",
+                    "UI/Frontend",
+                    "High",
+                    "Not Started",
+                    "Fictional example task.",
+                ),
             )
             db.execute(
                 "INSERT INTO goals(title,pillar,target_value,current_value) VALUES (?,?,?,?)",
@@ -139,85 +148,133 @@ def seed_if_empty():
             )
             db.commit()
 
+
 def list_tasks(where_sql="", params=()):
     q = "SELECT * FROM tasks"
     if where_sql:
         q += " WHERE " + where_sql
-    q += " ORDER BY COALESCE(due_date,'9999-12-31'), COALESCE(due_time,'23:59'), id DESC"
+    q += (
+        " ORDER BY COALESCE(due_date,'9999-12-31'), COALESCE(due_time,'23:59'), id DESC"
+    )
     with conn() as db:
         return db.execute(q, params).fetchall()
+
 
 def get_task(task_id: int):
     with conn() as db:
         return db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
 
-def add_task(title, pillar, subcategory, priority, status, due_date, due_time, notes):
+
+def add_task(
+    title,
+    pillar,
+    subcategory,
+    priority,
+    status,
+    due_date,
+    due_time,
+    notes,
+    sprint_id=None,
+    agenda_date=None,
+    effort_points=1,
+    gantt_id=None,
+):
     with conn() as db:
         cur = db.execute(
             """INSERT INTO tasks(
                 title,pillar,subcategory,priority,status,
                 due_date,due_time,
-                sprint_id,agenda_date,effort_points,
+                sprint_id,agenda_date,effort_points,gantt_id,
                 notes
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (title, pillar, subcategory, priority, status,
-             due_date or None, due_time or None,
-             None, None, 1,
-             notes or None),
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                title,
+                pillar,
+                subcategory,
+                priority,
+                status,
+                due_date or None,
+                due_time or None,
+                sprint_id,
+                agenda_date,
+                int(effort_points or 1),
+                gantt_id,
+                notes or None,
+            ),
         )
         db.commit()
         return cur.lastrowid
 
-def update_task(task_id, title, pillar, subcategory, priority, status, due_date, due_time, notes, sprint_id=None, agenda_date=None, effort_points=1):
+
+def update_task(
+    task_id,
+    title,
+    pillar,
+    subcategory,
+    priority,
+    status,
+    due_date,
+    due_time,
+    notes,
+    sprint_id=UNSET,
+    agenda_date=UNSET,
+    effort_points=UNSET,
+    gantt_id=UNSET,
+):
+    existing = get_task(task_id)
+    if existing is None:
+        raise ValueError("This task no longer exists. Refresh the page and try again.")
+    sprint_id = existing["sprint_id"] if sprint_id is UNSET else sprint_id
+    agenda_date = existing["agenda_date"] if agenda_date is UNSET else agenda_date
+    effort_points = (
+        existing["effort_points"] if effort_points is UNSET else effort_points
+    )
+    gantt_id = existing["gantt_id"] if gantt_id is UNSET else gantt_id
     with conn() as db:
         db.execute(
             """UPDATE tasks SET
                 title=?, pillar=?, subcategory=?, priority=?, status=?,
                 due_date=?, due_time=?,
-                sprint_id=?, agenda_date=?, effort_points=?,
+                sprint_id=?, agenda_date=?, effort_points=?, gantt_id=?,
                 notes=?,
                 updated_at=datetime('now')
                 WHERE id=?""",
-            (title, pillar, subcategory, priority, status,
-             due_date or None, due_time or None,
-             sprint_id, agenda_date or None, int(effort_points or 1),
-             notes or None,
-             task_id),
+            (
+                title,
+                pillar,
+                subcategory,
+                priority,
+                status,
+                due_date or None,
+                due_time or None,
+                sprint_id,
+                agenda_date or None,
+                int(effort_points or 1),
+                gantt_id,
+                notes or None,
+                task_id,
+            ),
         )
         db.commit()
+
 
 def set_task_sprint(task_id: int, sprint_id: int | None):
     with conn() as db:
-        db.execute("UPDATE tasks SET sprint_id=?, updated_at=datetime('now') WHERE id=?", (sprint_id, task_id))
-        db.commit()
-
-def set_task_agenda_date(task_id: int, agenda_date: str | None):
-    with conn() as db:
-        db.execute("UPDATE tasks SET agenda_date=?, updated_at=datetime('now') WHERE id=?", (agenda_date, task_id))
-        db.commit()
-
-def create_sprint(name: str, start_date: str, end_date: str, focus: str = ""):
-    with conn() as db:
         db.execute(
-            "INSERT INTO sprints(name,start_date,end_date,focus) VALUES (?,?,?,?)",
-            (name, start_date, end_date, focus or None),
+            "UPDATE tasks SET sprint_id=?, updated_at=datetime('now') WHERE id=?",
+            (sprint_id, task_id),
         )
         db.commit()
 
-def list_sprints():
-    with conn() as db:
-        return db.execute("SELECT * FROM sprints ORDER BY start_date DESC").fetchall()
 
-def get_sprint(sprint_id: int):
+def set_task_agenda_date(task_id: int, agenda_date: str | None):
     with conn() as db:
-        return db.execute("SELECT * FROM sprints WHERE id=?", (sprint_id,)).fetchone()
+        db.execute(
+            "UPDATE tasks SET agenda_date=?, updated_at=datetime('now') WHERE id=?",
+            (agenda_date, task_id),
+        )
+        db.commit()
 
-def get_current_sprint(today_iso: str):
-    with conn() as db:
-        return db.execute(
-            "SELECT * FROM sprints WHERE start_date<=? AND end_date>=? ORDER BY start_date DESC LIMIT 1",
-            (today_iso, today_iso),
-        ).fetchone()
 
 def list_tasks_for_sprint(sprint_id: int, pillar: str = ""):
     q = "SELECT * FROM tasks WHERE sprint_id=?"
@@ -229,6 +286,7 @@ def list_tasks_for_sprint(sprint_id: int, pillar: str = ""):
     with conn() as db:
         return db.execute(q, tuple(params)).fetchall()
 
+
 def list_tasks_for_agenda(agenda_date: str):
     with conn() as db:
         return db.execute(
@@ -236,43 +294,10 @@ def list_tasks_for_agenda(agenda_date: str):
             (agenda_date,),
         ).fetchall()
 
-def list_roadmap(month: str = "", pillar: str = ""):
-    where = []
-    params = []
-    if month:
-        where.append("month=?"); params.append(month)
-    if pillar:
-        where.append("pillar=?"); params.append(pillar)
-    q = "SELECT * FROM roadmap"
-    if where:
-        q += " WHERE " + " AND ".join(where)
-    q += " ORDER BY month DESC, id DESC"
-    with conn() as db:
-        return db.execute(q, tuple(params)).fetchall()
 
-def add_roadmap(pillar: str, month: str, title: str, status: str, notes: str = ""):
-    with conn() as db:
-        db.execute(
-            "INSERT INTO roadmap(pillar,month,title,status,notes) VALUES (?,?,?,?,?)",
-            (pillar, month, title, status, notes or None),
-        )
-        db.commit()
-
-def update_roadmap(item_id: int, pillar: str, month: str, title: str, status: str, notes: str = ""):
-    with conn() as db:
-        db.execute(
-            "UPDATE roadmap SET pillar=?, month=?, title=?, status=?, notes=? WHERE id=?",
-            (pillar, month, title, status, notes or None, item_id),
-        )
-        db.commit()
-
-def delete_roadmap(item_id: int):
-    with conn() as db:
-        db.execute("DELETE FROM roadmap WHERE id=?", (item_id,))
-        db.commit()
-
-
-def update_task_planning(task_id: int, sprint_id=None, agenda_date=None, effort_points: int = 1):
+def update_task_planning(
+    task_id: int, sprint_id=None, agenda_date=None, effort_points: int = 1
+):
     with conn() as db:
         db.execute(
             "UPDATE tasks SET sprint_id=?, agenda_date=?, effort_points=?, updated_at=datetime('now') WHERE id=?",
@@ -283,7 +308,9 @@ def update_task_planning(task_id: int, sprint_id=None, agenda_date=None, effort_
 
 def list_sprints():
     with conn() as db:
-        return db.execute("SELECT * FROM sprints ORDER BY start_date DESC, id DESC").fetchall()
+        return db.execute(
+            "SELECT * FROM sprints ORDER BY start_date DESC, id DESC"
+        ).fetchall()
 
 
 def get_sprint(sprint_id: int):
@@ -312,9 +339,11 @@ def list_roadmap(month: str = "", pillar: str = ""):
     where = []
     params = []
     if month:
-        where.append("month=?"); params.append(month)
+        where.append("month=?")
+        params.append(month)
     if pillar:
-        where.append("pillar=?"); params.append(pillar)
+        where.append("pillar=?")
+        params.append(pillar)
     q = "SELECT * FROM roadmap"
     if where:
         q += " WHERE " + " AND ".join(where)
@@ -323,7 +352,9 @@ def list_roadmap(month: str = "", pillar: str = ""):
         return db.execute(q, tuple(params)).fetchall()
 
 
-def add_roadmap(pillar: str, month: str, title: str, status: str = "Not Started", notes: str = ""):
+def add_roadmap(
+    pillar: str, month: str, title: str, status: str = "Not Started", notes: str = ""
+):
     with conn() as db:
         db.execute(
             "INSERT INTO roadmap(pillar,month,title,status,notes) VALUES (?,?,?,?,?)",
@@ -332,7 +363,9 @@ def add_roadmap(pillar: str, month: str, title: str, status: str = "Not Started"
         db.commit()
 
 
-def update_roadmap(item_id: int, pillar: str, month: str, title: str, status: str, notes: str = ""):
+def update_roadmap(
+    item_id: int, pillar: str, month: str, title: str, status: str, notes: str = ""
+):
     with conn() as db:
         db.execute(
             "UPDATE roadmap SET pillar=?, month=?, title=?, status=?, notes=? WHERE id=?",
@@ -346,10 +379,85 @@ def delete_roadmap(item_id: int):
         db.execute("DELETE FROM roadmap WHERE id=?", (item_id,))
         db.commit()
 
+
+# ===== GANTT TIMELINE STORAGE =====
+
+
+def list_gantt_bars():
+    with conn() as db:
+        return db.execute(
+            "SELECT * FROM gantt_bars ORDER BY start_date ASC, id DESC"
+        ).fetchall()
+
+
+def get_gantt_bar(bar_id: int):
+    with conn() as db:
+        return db.execute("SELECT * FROM gantt_bars WHERE id=?", (bar_id,)).fetchone()
+
+
+def add_gantt_bar(
+    title: str,
+    start_date: str,
+    end_date: str,
+    color: str = "#1f77b4",
+    status: str = "Not Started",
+    notes: str = "",
+):
+    with conn() as db:
+        cur = db.execute(
+            """INSERT INTO gantt_bars(title,start_date,end_date,color,status,notes) VALUES (?,?,?,?,?,?)""",
+            (title, start_date, end_date, color, status, notes or None),
+        )
+        db.commit()
+        return cur.lastrowid
+
+
+def update_gantt_bar(
+    bar_id: int,
+    title: str,
+    start_date: str,
+    end_date: str,
+    color: str = "#1f77b4",
+    status: str = "Not Started",
+    notes: str = "",
+):
+    with conn() as db:
+        db.execute(
+            """UPDATE gantt_bars SET title=?, start_date=?, end_date=?, color=?, status=?, notes=? WHERE id=?""",
+            (title, start_date, end_date, color, status, notes or None, bar_id),
+        )
+        db.commit()
+
+
+def delete_gantt_bar(bar_id: int):
+    with conn() as db:
+        db.execute("UPDATE tasks SET gantt_id=NULL WHERE gantt_id=?", (bar_id,))
+        db.execute("DELETE FROM gantt_bars WHERE id=?", (bar_id,))
+        db.commit()
+
+
+def list_tasks_for_gantt(bar_id: int):
+    with conn() as db:
+        return db.execute(
+            "SELECT * FROM tasks WHERE gantt_id=? ORDER BY COALESCE(due_date,'9999-12-31'), COALESCE(due_time,'23:59'), id DESC",
+            (bar_id,),
+        ).fetchall()
+
+
+def update_task_gantt(task_id: int, gantt_id: int | None):
+    with conn() as db:
+        db.execute(
+            "UPDATE tasks SET gantt_id=?, updated_at=datetime('now') WHERE id=?",
+            (gantt_id, task_id),
+        )
+        db.commit()
+
+
 def delete_task(task_id: int):
     with conn() as db:
         db.execute("DELETE FROM tasks WHERE id=?", (task_id,))
         db.commit()
+
 
 def toggle_complete(task_id: int):
     t = get_task(task_id)
@@ -369,7 +477,9 @@ def toggle_complete(task_id: int):
         sprint_id=t["sprint_id"],
         agenda_date=t["agenda_date"],
         effort_points=t["effort_points"],
+        gantt_id=t["gantt_id"],
     )
+
 
 def cycle_status(task_id: int):
     t = get_task(task_id)
@@ -400,6 +510,7 @@ def cycle_status(task_id: int):
         sprint_id=t["sprint_id"],
         agenda_date=t["agenda_date"],
         effort_points=t["effort_points"],
+        gantt_id=t["gantt_id"],
     )
 
 
@@ -407,7 +518,10 @@ def list_goals():
     with conn() as db:
         return db.execute("SELECT * FROM goals ORDER BY id DESC").fetchall()
 
-def add_goal(title: str, pillar: str, target_value: int, current_value: int, due_date: str = ""):
+
+def add_goal(
+    title: str, pillar: str, target_value: int, current_value: int, due_date: str = ""
+):
     with conn() as db:
         db.execute(
             "INSERT INTO goals(title,pillar,target_value,current_value,due_date) VALUES (?,?,?,?,?)",
@@ -415,113 +529,31 @@ def add_goal(title: str, pillar: str, target_value: int, current_value: int, due
         )
         db.commit()
 
-def update_goal(goal_id: int, title: str, pillar: str, target_value: int, current_value: int, due_date: str = ""):
+
+def update_goal(
+    goal_id: int,
+    title: str,
+    pillar: str,
+    target_value: int,
+    current_value: int,
+    due_date: str = "",
+):
     with conn() as db:
         db.execute(
             "UPDATE goals SET title=?, pillar=?, target_value=?, current_value=?, due_date=? WHERE id=?",
-            (title, pillar, int(target_value), int(current_value), due_date or None, goal_id),
+            (
+                title,
+                pillar,
+                int(target_value),
+                int(current_value),
+                due_date or None,
+                goal_id,
+            ),
         )
         db.commit()
+
 
 def delete_goal(goal_id: int):
     with conn() as db:
         db.execute("DELETE FROM goals WHERE id=?", (goal_id,))
-        db.commit()
-
-
-# ===== HOSTING / AIRBNB PROPERTIES =====
-
-def list_properties():
-    with conn() as db:
-        return db.execute("SELECT * FROM properties ORDER BY created_at DESC").fetchall()
-
-
-def get_property(property_id: int):
-    with conn() as db:
-        return db.execute("SELECT * FROM properties WHERE id=?", (property_id,)).fetchone()
-
-
-def add_property(name: str, address: str = "", listing_url: str = "", nightly_price: float = 0.0, commission_rate: float = 0.03, status: str = "Active", notes: str = ""):
-    with conn() as db:
-        db.execute(
-            """INSERT INTO properties(name,address,listing_url,nightly_price,commission_rate,status,notes)
-               VALUES (?,?,?,?,?,?,?)""",
-            (name, address or None, listing_url or None, float(nightly_price), float(commission_rate), status, notes or None),
-        )
-        db.commit()
-        cur = db.execute("SELECT last_insert_rowid() as id").fetchone()
-        return cur["id"]
-
-
-def update_property(property_id: int, name: str, address: str = "", listing_url: str = "", nightly_price: float = 0.0, commission_rate: float = 0.03, status: str = "Active", notes: str = ""):
-    with conn() as db:
-        db.execute(
-            """UPDATE properties SET name=?, address=?, listing_url=?, nightly_price=?, commission_rate=?, status=?, notes=?, updated_at=datetime('now')
-               WHERE id=?""",
-            (name, address or None, listing_url or None, float(nightly_price), float(commission_rate), status, notes or None, property_id),
-        )
-        db.commit()
-
-
-def delete_property(property_id: int):
-    with conn() as db:
-        db.execute("DELETE FROM hosting_tasks WHERE property_id=?", (property_id,))
-        db.execute("DELETE FROM properties WHERE id=?", (property_id,))
-        db.commit()
-
-
-def list_hosting_tasks(property_id: int = None):
-    if property_id:
-        q = "SELECT * FROM hosting_tasks WHERE property_id=? ORDER BY due_date, priority DESC, id DESC"
-        with conn() as db:
-            return db.execute(q, (property_id,)).fetchall()
-    else:
-        q = "SELECT * FROM hosting_tasks ORDER BY due_date, priority DESC, id DESC"
-        with conn() as db:
-            return db.execute(q).fetchall()
-
-
-def add_hosting_task(property_id: int, title: str, description: str = "", status: str = "Not Started", due_date: str = "", priority: str = "Medium"):
-    with conn() as db:
-        db.execute(
-            """INSERT INTO hosting_tasks(property_id,title,description,status,due_date,priority)
-               VALUES (?,?,?,?,?,?)""",
-            (property_id, title, description or None, status, due_date or None, priority),
-        )
-        db.commit()
-
-
-def update_hosting_task(task_id: int, title: str, description: str = "", status: str = "Not Started", due_date: str = "", priority: str = "Medium"):
-    with conn() as db:
-        db.execute(
-            """UPDATE hosting_tasks SET title=?, description=?, status=?, due_date=?, priority=?, updated_at=datetime('now')
-               WHERE id=?""",
-            (title, description or None, status, due_date or None, priority, task_id),
-        )
-        db.commit()
-
-
-def delete_hosting_task(task_id: int):
-    with conn() as db:
-        db.execute("DELETE FROM hosting_tasks WHERE id=?", (task_id,))
-        db.commit()
-
-
-def cycle_hosting_task_status(task_id: int):
-    t = db.execute("SELECT * FROM hosting_tasks WHERE id=?", (task_id,)).fetchone() if False else None
-    with conn() as db:
-        task = db.execute("SELECT * FROM hosting_tasks WHERE id=?", (task_id,)).fetchone()
-        if not task:
-            return
-        order = ["Not Started", "In Progress", "Completed"]
-        cur = task["status"] or "Not Started"
-        try:
-            idx = order.index(cur)
-        except ValueError:
-            idx = 0
-        new_status = order[(idx + 1) % len(order)]
-        db.execute(
-            "UPDATE hosting_tasks SET status=?, updated_at=datetime('now') WHERE id=?",
-            (new_status, task_id),
-        )
         db.commit()

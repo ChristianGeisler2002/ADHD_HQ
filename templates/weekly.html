@@ -29,17 +29,16 @@
       {% for d in days %}
         {% set ds = d.isoformat() %}
         {% set is_past = d < today %}
-        <a class="weekCol {{ 'today' if d==today else '' }}" 
+        <a class="weekCol {{ 'today' if d==today else '' }} {{ 'selected' if ds==selected_day else '' }}"
            href="/weekly?day={{ds}}" 
-           style="text-decoration:none; {{ 'opacity:0.5; cursor:not-allowed;' if is_past else '' }}"
-           onclick="{{ 'return false;' if is_past else '' }}">
+           style='text-decoration:none; {{ "opacity:0.65;" if is_past else "" }}'>
           <div class="weekHead">
             <div class="weekDay">{{ d.strftime("%a") }}</div>
             <div class="weekDate mono">{{ d.strftime("%m/%d") }}</div>
           </div>
-          {% set day_tasks = [t for t in (board.get('In Progress', []) or []) + (board.get('Completed', []) or []) + (board.get('Not Started', []) or []) if t.get('agenda_date') == ds] %}
+          {% set day_count = day_agenda_count.get(ds, 0) %}
           <div class="muted small mono">
-            {% if is_past %}Past{% elif ds==selected_day %}Selected{% else %}{{ day_tasks|length }} task(s){% endif %}
+            {% if is_past %}Past{% elif ds==selected_day %}Selected{% else %}{{ day_count }} task(s){% endif %}
           </div>
         </a>
       {% endfor %}
@@ -62,34 +61,69 @@
 
 <!-- BOTTOM LAYOUT: LEFT (Future Sprints) + RIGHT (Sprint Tasks) -->
 <div class="grid2">
-  <!-- LEFT: Future Sprints -->
+  <!-- LEFT: Selected Sprint Day Tasks -->
   <section class="card">
-    <div class="subTitle">Upcoming Sprints</div>
-    <div class="muted small">Next 3 sprints overview.</div>
+    <div class="subTitle">Sprint Day: <span class="mono">{{ selected_day }}</span></div>
+    <div class="muted small">Tasks for the selected sprint day from the timeline.</div>
 
-    {% if future_sprints|length == 0 %}
-      <div class="muted" style="margin-top:10px;">No upcoming sprints scheduled.</div>
+    {% if agenda|length == 0 %}
+      <div class="muted" style="margin-top:10px;">No tasks found for this sprint day yet.</div>
     {% else %}
-      <div class="miniList" style="margin-top:10px;">
-        {% for s in future_sprints %}
-          <div class="miniItem">
-            <div class="miniTitle">{{ s.name }}</div>
-            <div class="miniMeta">
-              <span class="muted small mono">{{ s.start_date }} → {{ s.end_date }}</span>
-              {% if s.focus %}<span class="muted small">{{ s.focus }}</span>{% endif %}
+      <div style="margin-top:10px;">
+        {% for t in agenda %}
+          <div class="weekItem">
+            <div class="taskTop" style="display:flex; justify-content:space-between; align-items:start; gap:10px;">
+              <div style="flex:1;">
+                <div class="mono">{{ t.title }}</div>
+                <div class="weekMeta">
+                  <span class="tag {{t.priority|lower}}">{{ t.priority }}</span>
+                  {% if t.due_time %}<span class="muted small mono">{{ t.due_time }}</span>{% endif %}
+                </div>
+              </div>
+              <form method="post" action="/tasks/cycle-status" style="display:inline;">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <button class="tag status" style="border:none; background:none; cursor:pointer; padding:0; font-family:inherit;">{{ t.status }}</button>
+              </form>
             </div>
-
             <details style="margin-top:8px;">
               <summary class="btn ghost smallBtn">Edit</summary>
-              <form class="editPane2" method="post" action="/sprints/create" style="margin-top:10px;">
-                <input type="hidden" name="sprint_id" value="{{ s.id }}">
-                <input class="input" name="name" value="{{ s.name }}" required>
-                <input class="input" type="date" name="start_date" value="{{ s.start_date }}" required>
-                <input class="input" type="date" name="end_date" value="{{ s.end_date }}" required>
-                <input class="input" name="focus" value="{{ s.focus or '' }}" placeholder="Sprint focus (optional)">
+              <form class="editPane2" method="post" action="/tasks/update" style="margin-top:10px;">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <input class="input" name="title" value="{{ t.title }}" required>
+                <select class="select" name="subcategory">
+                  {% if subcats and subcats['Projects'] %}
+                    {% for sc in subcats['Projects'] %}
+                      <option {{ 'selected' if sc == t.subcategory else '' }}>{{ sc }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option {{ 'selected' if t.subcategory == 'UI/Frontend' else '' }}>UI/Frontend</option>
+                    <option {{ 'selected' if t.subcategory == 'Backend/API' else '' }}>Backend/API</option>
+                    <option {{ 'selected' if t.subcategory == 'Compliance/Legal' else '' }}>Compliance/Legal</option>
+                    <option {{ 'selected' if t.subcategory == 'Investor Prep' else '' }}>Investor Prep</option>
+                    <option {{ 'selected' if t.subcategory == 'Marketing/Growth' else '' }}>Marketing/Growth</option>
+                    <option {{ 'selected' if t.subcategory == 'Testing/QA' else '' }}>Testing/QA</option>
+                  {% endif %}
+                </select>
+                <select class="select" name="priority">
+                  {% for p in priorities %}
+                    <option {{ 'selected' if p == t.priority else '' }}>{{ p }}</option>
+                  {% endfor %}
+                </select>
+                <select class="select" name="status">
+                  {% for s in statuses %}
+                    <option {{ 'selected' if s == t.status else '' }}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+                <input class="input" type="date" name="due_date" value="{{ t.due_date or '' }}">
+                <input class="input" type="time" name="due_time" value="{{ t.due_time or '' }}">
+                <input class="input" name="notes" value="{{ t.notes or '' }}" placeholder="Notes">
                 <div class="btnRow">
                   <button class="btn smallBtn" type="submit">Save</button>
                 </div>
+              </form>
+              <form method="post" action="/tasks/delete" style="margin-top:10px;">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
               </form>
             </details>
           </div>
@@ -223,7 +257,140 @@
         {% endfor %}
       </div>
     {% endif %}
+
   </section>
 </div>
+
+<section class="card gantt-section">
+    <div class="subTitle">Projects Gantt Timeline</div>
+    <form class="addForm2" method="post" action="/weekly/gantt/add" style="margin-top:10px;">
+      <input class="input" name="title" placeholder="Timeline label (e.g., Launch Phase 1)" required>
+      <input class="input" type="date" name="start_date" required>
+      <input class="input" type="date" name="end_date" required>
+      <input class="input" type="color" name="color" value="#1f77b4">
+      <select class="select" name="status">
+        <option>Not Started</option>
+        <option>In Progress</option>
+        <option>Completed</option>
+      </select>
+      <input class="input" name="notes" placeholder="Notes (optional)">
+      <button class="btn" type="submit">ADD GANTT BAR</button>
+    </form>
+
+    {% if gantt_bars|length == 0 %}
+      <div class="muted small" style="margin-top:10px;">No Gantt bars yet. Add one above.</div>
+    {% else %}
+      <div class="ganttContainer" style="margin-top:10px; overflow-x:auto;">
+        <table class="ganttTable">
+          <thead>
+            <tr>
+              <th class="ganttHeader">Task</th>
+              <th class="ganttHeader">Start</th>
+              <th class="ganttHeader">End</th>
+              <th class="ganttHeader">Status</th>
+              <th class="ganttHeader">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in gantt_bars %}
+              <tr data-gantt-row="{{ b.id }}">
+                <td class="ganttItemName">
+                  <a href="/weekly?day={{ selected_day }}&gantt_id={{ b.id }}" class="mono">{{ b.title }}</a>
+                </td>
+                <td data-gantt-start>{{ b.start_date }}</td>
+                <td data-gantt-end>{{ b.end_date }}</td>
+                <td><span class="tag {{ b.status|lower|replace(' ', '') }}">{{ b.status }}</span></td>
+                <td>
+                  <details class="rowEdit" style="display:inline;">
+                    <summary class="btn ghost smallBtn">Edit</summary>
+                    <form class="editPane2" method="post" action="/weekly/gantt/update" style="margin-top:10px;">
+                      <input type="hidden" name="bar_id" value="{{ b.id }}">
+                      <input class="input" name="title" value="{{ b.title }}" required>
+                      <input class="input" type="date" name="start_date" value="{{ b.start_date }}" required>
+                      <input class="input" type="date" name="end_date" value="{{ b.end_date }}" required>
+                      <input class="input" type="color" name="color" value="{{ b.color or '#1f77b4' }}">
+                      <select class="select" name="status">
+                        <option {{ 'selected' if b.status == 'Not Started' else '' }}>Not Started</option>
+                        <option {{ 'selected' if b.status == 'In Progress' else '' }}>In Progress</option>
+                        <option {{ 'selected' if b.status == 'Completed' else '' }}>Completed</option>
+                      </select>
+                      <input class="input" name="notes" value="{{ b.notes or '' }}" placeholder="Notes (optional)">
+                      <div class="btnRow">
+                        <button class="btn smallBtn" type="submit">Save</button>
+                      </div>
+                    </form>
+                    <form method="post" action="/weekly/gantt/delete" style="margin-top:10px;">
+                      <input type="hidden" name="bar_id" value="{{ b.id }}">
+                      <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
+                    </form>
+                  </details>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="subTitle" style="margin-top:16px;">Gantt Timeline · All milestones</div>
+      <p class="muted small">Select a bar to view its tasks. Drag to move; drag an edge to resize. Dates include the final day. Use the edit form for exact dates.</p>
+      <div id="gantt-feedback" role="status" aria-live="polite"></div>
+      <div class="gantt-scroll"><div id="ganttChart" style="position:relative; min-height:150px; margin-top:10px; border:1px solid var(--line); background:var(--bg);">
+        <div id="ganttChartLabels" class="gantt-labels"></div>
+        <div id="ganttChartBars" class="gantt-rows"></div>
+      </div></div>
+
+      {% if selected_gantt %}
+        <div class="muted small" style="margin-top:10px;">Selected Gantt: <span class="mono">{{ selected_gantt.title }}</span> ({{ selected_gantt.start_date }} → {{ selected_gantt.end_date }})</div>
+        <form class="addForm2" method="post" action="/weekly/gantt/task/add" style="margin-top:10px;">
+          <input type="hidden" name="gantt_id" value="{{ selected_gantt.id }}">
+          <input class="input" name="title" placeholder="Task for this timeline" required>
+          <input class="input" type="date" name="due_date" value="{{ selected_day }}">
+          <input class="input" type="time" name="due_time">
+          <select class="select" name="priority">
+            {% for p in priorities %}
+              <option>{{ p }}</option>
+            {% endfor %}
+          </select>
+          <select class="select" name="status">
+            {% for s in statuses %}
+              <option>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <input class="input" name="notes" placeholder="Notes (optional)">
+          <button class="btn" type="submit">ADD GANTT TASK</button>
+        </form>
+
+        <div class="miniList" style="margin-top:10px;">
+          {% for t in gantt_tasks %}
+            <div class="miniItem">
+              <div class="miniTitle mono">{{ t.title }}</div>
+              <div class="miniMeta">
+                <span class="tag {{ t.status|lower|replace(' ', '') }}">{{ t.status }}</span>
+                <span class="tag {{ t.priority|lower }}">{{ t.priority }}</span>
+                <span class="muted small mono">{{ t.due_date or '' }} {{ t.due_time or '' }}</span>
+              </div>
+              <div style="margin-top:6px;">
+                <form method="post" action="/tasks/toggle" style="display:inline;">
+                  <input type="hidden" name="task_id" value="{{ t.id }}">
+                  <button class="btn ghost smallBtn" type="submit">Toggle Complete</button>
+                </form>
+                <form method="post" action="/tasks/delete" style="display:inline; margin-left:6px;">
+                  <input type="hidden" name="task_id" value="{{ t.id }}">
+                  <button class="btn dangerBtn smallBtn" type="submit">Delete</button>
+                </form>
+              </div>
+            </div>
+          {% else %}
+            <div class="muted small">No tasks in this timeline yet.</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endif %}
+
+  </section>
+
+<script id="gantt-data" type="application/json">{{ gantt_bars | tojson }}</script>
+<script defer src="/static/js/gantt.js"></script>
+
 
 {% endblock %}

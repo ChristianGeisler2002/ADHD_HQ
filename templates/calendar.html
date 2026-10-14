@@ -9,6 +9,11 @@
 </div>
 
 <section class="card">
+  <div class="btnRow" style="margin-bottom:16px">
+    <a class="btn ghost" aria-label="Previous month" href="/calendar?y={{ previous_month.year }}&m={{ previous_month.month }}">← Previous</a>
+    <a class="btn ghost" href="/calendar">Today</a>
+    <a class="btn ghost" aria-label="Next month" href="/calendar?y={{ next_month.year }}&m={{ next_month.month }}">Next →</a>
+  </div>
   <div class="subTitle">{{ year }}‑{{ "%02d"|format(month) }}</div>
 
   <div class="calGridHead">
@@ -134,6 +139,25 @@
   {% endif %}
 </section>
 
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">Add Calendar Task</div>
+  <form class="addForm2" method="post" action="/calendar/add" style="margin-top:10px;">
+    <input class="input" name="title" placeholder="Task title" required>
+    <input class="input" type="date" name="due_date" value="{{ selected_day or today.isoformat() }}" required>
+    <input class="input" type="time" name="due_time">
+    <select class="select" name="priority">
+      {% for p in priorities %}<option>{{ p }}</option>{% endfor %}
+    </select>
+    <select class="select" name="status">
+      {% for s in statuses %}<option>{{ s }}</option>{% endfor %}
+    </select>
+    <input class="input" name="notes" placeholder="Notes (optional)">
+    <button class="btn" type="submit">ADD CALENDAR TASK</button>
+  </form>
+</section>
+
+<section class="card" style="margin-top:14px;">
+  <div class="subTitle">{% if selected_day %}Tasks on {{ selected_day }}{% else %}Day Detail{% endif %}</div>
   {% if selected_day and selected_tasks|length == 0 %}
     <div class="muted">No tasks due that day.</div>
   {% elif selected_day %}

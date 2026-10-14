@@ -42,4 +42,38 @@ document.addEventListener("DOMContentLoaded", () => {
       subcatSelect.value = current;
     }
   });
+
+
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("input, select, textarea").forEach(field => {
+    if (!field.labels?.length && !field.getAttribute("aria-label")) {
+      field.setAttribute("aria-label", field.placeholder || field.name.replaceAll("_", " "));
+    }
+  });
+  document.querySelectorAll("form[method='post']").forEach(form => {
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (form.action.endsWith("/delete") && !confirm("Delete this item? This cannot be undone.")) return;
+      const button = event.submitter;
+      if (button?.disabled) return;
+      if (button) button.disabled = true;
+      const feedback = document.createElement("p");
+      feedback.setAttribute("role", "alert");
+      try {
+        const response = await fetch(form.action, { method: "POST", body: new URLSearchParams(new FormData(form)) });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Check the form values and try again.");
+        }
+        window.location.assign(response.url);
+      } catch (error) {
+        feedback.textContent = error.message || "Could not save. Try again.";
+        form.querySelector("[role='alert']")?.remove();
+        form.append(feedback);
+        if (button) button.disabled = false;
+      }
+    });
+  });
 });
