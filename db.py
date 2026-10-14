@@ -117,36 +117,80 @@ def _row_to_dict(r):
 
 
 def seed_if_empty():
+    """Add fictional examples only to a workspace that has never held records."""
+    from datetime import date, timedelta
+
+    today = date.today()
     with conn() as db:
-        n = db.execute("SELECT COUNT(*) AS c FROM tasks").fetchone()["c"]
-        if n == 0:
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS demo_seed (id INTEGER PRIMARY KEY CHECK (id=1))"
+        )
+        if db.execute("SELECT 1 FROM demo_seed").fetchone():
+            return
+        db.execute("INSERT INTO demo_seed (id) VALUES (1)")
+        if any(
+            db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in ("tasks", "goals", "sprints", "roadmap", "gantt_bars")
+        ):
+            return
+        start = today - timedelta(days=today.weekday())
+        sprint = db.execute(
+            "INSERT INTO sprints(name,start_date,end_date,focus) VALUES (?,?,?,?)",
+            (
+                "Example weekly plan",
+                start.isoformat(),
+                (start + timedelta(days=6)).isoformat(),
+                "Practice planning with sample tasks",
+            ),
+        ).lastrowid
+        examples = [
+            ("Read a sample chapter", "School", "Reading", "Completed", -1),
+            ("Write a practice summary", "School", "Assignments", "In Progress", 1),
+            ("Review sample quiz questions", "School", "Studying", "Not Started", 2),
+            ("Organize example study notes", "School", "Studying", "In Progress", -1),
+            ("Sketch an example page", "Projects", "UI/Frontend", "Completed", 0),
+            ("Test the example workflow", "Projects", "Testing/QA", "Not Started", 3),
+        ]
+        for title, pillar, subcategory, status, offset in examples:
             db.execute(
-                "INSERT INTO tasks(title,pillar,subcategory,priority,status,notes) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO tasks(title,pillar,subcategory,priority,status,due_date,sprint_id,agenda_date,notes) VALUES (?,?,?,?,?,?,?,?,?)",
                 (
-                    "Write a practice summary",
-                    "School",
-                    "Discussions",
-                    "High",
-                    "In Progress",
-                    "Fictional example task.",
+                    title,
+                    pillar,
+                    subcategory,
+                    "Medium",
+                    status,
+                    (today + timedelta(days=offset)).isoformat(),
+                    sprint,
+                    today.isoformat(),
+                    "Fictional sample. Edit or remove this task.",
                 ),
             )
+        for title, pillar, target, current in [
+            ("Complete five sample study sessions", "School", 5, 2),
+            ("Finish the example project checklist", "Projects", 10, 3),
+        ]:
             db.execute(
-                "INSERT INTO tasks(title,pillar,subcategory,priority,status,notes) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO goals(title,pillar,target_value,current_value,due_date) VALUES (?,?,?,?,?)",
                 (
-                    "Sketch an example page",
-                    "Projects",
-                    "UI/Frontend",
-                    "High",
-                    "Not Started",
-                    "Fictional example task.",
+                    title,
+                    pillar,
+                    target,
+                    current,
+                    (today + timedelta(days=14)).isoformat(),
                 ),
             )
-            db.execute(
-                "INSERT INTO goals(title,pillar,target_value,current_value) VALUES (?,?,?,?)",
-                ("Example project progress", "Projects", 100, 35),
-            )
-            db.commit()
+        db.execute(
+            "INSERT INTO gantt_bars(title,start_date,end_date,color,status,notes) VALUES (?,?,?,?,?,?)",
+            (
+                "Example project",
+                today.isoformat(),
+                (today + timedelta(days=10)).isoformat(),
+                "#4a9eff",
+                "In Progress",
+                "Fictional sample milestone",
+            ),
+        )
 
 
 def list_tasks(where_sql="", params=()):

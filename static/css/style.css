@@ -491,6 +491,9 @@ button:disabled{opacity:.55;cursor:wait}
   .main{padding:18px}
 }
 @media(max-width:680px){
+  .ringWrap{flex-direction:column;align-items:center}
+  .ringRow{flex-wrap:wrap;justify-content:center;max-width:100%}
+  .statsRight{width:100%;min-width:0}
   .topRow{align-items:flex-start;gap:12px;flex-wrap:wrap}
   .topTabs{flex-wrap:wrap;position:static}
   .addForm,.addForm2,.editPane,.editPane2{grid-template-columns:1fr!important}

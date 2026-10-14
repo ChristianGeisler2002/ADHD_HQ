@@ -28,6 +28,27 @@ def test_pages_and_empty_start(client):
     assert db.list_tasks() == []
 
 
+def test_sample_workspace_stays_generic_and_seeds_once(client):
+    db.seed_if_empty()
+    titles = [row["title"] for row in db.list_tasks()]
+    assert "Write a practice summary" in titles
+    assert len(db.list_goals()) == 2
+    db.seed_if_empty()
+    assert len(db.list_tasks()) == len(titles)
+    with db.conn() as connection:
+        connection.execute("DELETE FROM tasks")
+        connection.execute("DELETE FROM goals")
+    db.seed_if_empty()
+    assert db.list_tasks() == []
+
+
+def test_samples_do_not_mix_with_an_existing_workspace(client):
+    db.add_task("Existing task", "School", "Reading", "Low", "Not Started", "", "", "")
+    db.seed_if_empty()
+    assert [row["title"] for row in db.list_tasks()] == ["Existing task"]
+    assert db.list_goals() == []
+
+
 def test_task_edit_and_status_preserve_planning(client):
     bar = db.add_gantt_bar("Milestone", "2026-10-14", "2026-10-18")
     task = db.add_task(

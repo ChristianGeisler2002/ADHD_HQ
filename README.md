@@ -1,8 +1,24 @@
 # ADHD HQ
 
-ADHD HQ is a local desktop planner for school assignments, weekly sprints, daily work, goals, and project timelines. It keeps the existing School and Projects work areas together without requiring a hosted service or an account.
+I built ADHD HQ to keep assignments, weekly plans, goals, and project timelines in one desktop app. It runs locally without an account. The public examples use generic School and Projects categories.
 
-![Sprint planning and Gantt timeline](docs/screenshots/gantt.jpg)
+![Dashboard with fictional sample assignments](docs/screenshots/dashboard.png)
+
+The screenshot uses fictional sample tasks. No personal assignments, goals, or databases are included.
+
+## Stack and why I used it
+
+| Part | Technology | Reason |
+| --- | --- | --- |
+| Application | Python 3.12 | Keeps the desktop launcher, routes, and database code in one language. |
+| Local API | FastAPI, Uvicorn, python-multipart | Handles pages, forms, and timeline saves through a small local server. |
+| Pages | Jinja2, HTML, CSS | Renders the planner without a separate frontend build. |
+| Interactions | Vanilla JavaScript, SVG | Handles Gantt dragging, resizing, progress rings, and form feedback. |
+| Storage | SQLite, Python sqlite3 | One local database file is enough for a single-user planner. |
+| Desktop window | pywebview, Windows WebView2 | Reuses the web interface inside a native window. |
+| Packaging and checks | PyInstaller, pytest, Node's test runner, Ruff | Builds the Windows app and checks the routes and date calculations. |
+
+The API is local to the app. FastAPI serves the pages, accepts task and goal forms, and exposes `/healthz` and `/api/stats`. JavaScript saves Gantt changes through the same local routes. There are no paid APIs, cloud accounts, API keys, email services, or external database servers.
 
 ## What it does
 
@@ -42,7 +58,15 @@ Open `http://127.0.0.1:8844`. This is a personal local application. Keep the ser
 
 On Windows, the SQLite database lives at `%LOCALAPPDATA%\ADHD HQ\taskhq.db`, outside the application and source folders. Desktop errors are recorded in `desktop.log` in the same folder. Closing the window shuts down its server. Each launch reserves an available loopback port, so an occupied fixed port does not prevent startup.
 
-Set `ADHD_HQ_DATA_DIR` to use a different data directory. A new installation starts empty. For the small built-in sample dataset, set `ADHD_HQ_DEMO=1` before starting the app.
+Set `ADHD_HQ_DATA_DIR` to use a different data directory. A new installation starts empty. To try the built-in fictional goals and assignments without opening your own database:
+
+```powershell
+$env:ADHD_HQ_DATA_DIR = "$PWD\sample-data"
+$env:ADHD_HQ_DEMO = "1"
+.\.venv\Scripts\python.exe desktop.py
+```
+
+The examples are added once, only to a new empty workspace. Your normal data folder is unchanged. Keep `sample-data/` and all database files out of Git.
 
 Close the app before copying the database for a backup. To bring an older database across, choose a new destination and run:
 
